@@ -16,13 +16,19 @@ function App() {
   const [isPlaying, setIsPlaying] = useState(false)
   const [imageSeconds, setImageSeconds] = useState(DEFAULT_IMAGE_SECONDS)
   const inputRef = useRef<HTMLInputElement>(null)
+  const itemsRef = useRef(items)
+  useEffect(() => {
+    itemsRef.current = items
+  }, [items])
 
-  // Revoke object URLs when they're no longer needed to avoid leaking memory.
+  // Revoke any remaining object URLs on unmount to avoid leaking memory.
+  // (Removal/clearing already revoke their own URLs immediately; this only
+  // runs once, so reordering items via shuffle won't revoke live URLs.)
   useEffect(() => {
     return () => {
-      for (const item of items) URL.revokeObjectURL(item.url)
+      for (const item of itemsRef.current) URL.revokeObjectURL(item.url)
     }
-  }, [items])
+  }, [])
 
   const handleFiles = useCallback((fileList: FileList) => {
     const files = Array.from(fileList)
@@ -48,6 +54,17 @@ function App() {
     setItems((prev) => {
       for (const item of prev) URL.revokeObjectURL(item.url)
       return []
+    })
+  }
+
+  const shuffle = () => {
+    setItems((prev) => {
+      const next = [...prev]
+      for (let i = next.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1))
+        ;[next[i], next[j]] = [next[j], next[i]]
+      }
+      return next
     })
   }
 
@@ -95,6 +112,9 @@ function App() {
             }}
           />
         </label>
+        <button type="button" disabled={items.length < 2} onClick={shuffle}>
+          Shuffle
+        </button>
         <button type="button" disabled={items.length === 0} onClick={clearAll}>
           Clear all
         </button>
