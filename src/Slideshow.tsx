@@ -43,29 +43,40 @@ function Slideshow({ items, imageSeconds, onExit }: SlideshowProps) {
     return () => clearTimeout(timer)
   }, [index, items, imageSeconds, advance])
 
+  // Reuse a single video element across slides instead of remounting a new
+  // one per slide (via a key): repeatedly creating/destroying <video>
+  // elements leaks decoder/GPU buffers over long runs with many videos.
+  // Releasing the source explicitly before the next one loads keeps that
+  // from accumulating.
   useEffect(() => {
-    videoRef.current?.play().catch(() => {})
-  }, [index])
+    const video = videoRef.current
+    const item = items[index]
+    if (!video || item?.type !== 'video') return
+
+    video.src = item.url
+    video.play().catch(() => {})
+
+    return () => {
+      video.pause()
+      video.removeAttribute('src')
+      video.load()
+    }
+  }, [index, items])
 
   const current = items[index]
   if (!current) return null
 
   return (
     <div className="slideshow" ref={containerRef}>
-      {current.type === 'image' ? (
-        <img key={current.url} src={current.url} alt="" className="slide" />
-      ) : (
-        <video
-          key={current.url}
-          ref={videoRef}
-          src={current.url}
-          className="slide"
-          autoPlay
-          playsInline
-          muted={muted}
-          onEnded={advance}
-        />
-      )}
+      {current.type === 'image' && <img src={current.url} alt="" className="slide" />}
+      <video
+        ref={videoRef}
+        className="slide"
+        style={{ display: current.type === 'video' ? undefined : 'none' }}
+        playsInline
+        muted={muted}
+        onEnded={advance}
+      />
       <div className="controls">
         {current.type === 'video' && (
           <button type="button" className="mute" onClick={() => setMuted((m) => !m)}>
